@@ -4,7 +4,7 @@
 - [x] Prisma schema + migration
 - [x] Seed script (companies, branches, jobs, applicants, template, submissions)
 - [x] HTTP foundation (Fastify, Swagger, error handler, logging)
-- [ ] Companies CRUD (search + pagination cap)
+- [x] Companies CRUD (search + pagination cap)
 - [ ] Branches CRUD
 - [ ] Jobs CRUD
 - [ ] Applicants CRUD
