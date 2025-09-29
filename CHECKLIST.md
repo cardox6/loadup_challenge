@@ -7,7 +7,7 @@
 - [x] Companies CRUD (search + pagination cap)
 - [x] Branches CRUD
 - [x] Jobs CRUD
-- [ ] Applicants CRUD
+- [x] Applicants CRUD
 - [ ] Assessment templates CRUD
 - [ ] Submissions (snapshot correctness/weight)
 - [ ] Matches (negative marking, recency, location bonus)
