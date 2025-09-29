@@ -44,7 +44,7 @@ app.register(swaggerUi, {
 app.register((await import("./routes/health.js")).default);
 app.register((await import("./routes/companies.js")).default);
 app.register((await import("./routes/branches.js")).default);
-
+app.register((await import("./routes/jobs.js")).default);
 
 // Error handler
 app.setErrorHandler((err, req, reply) => {

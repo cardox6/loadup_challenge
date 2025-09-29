@@ -5,8 +5,8 @@
 - [x] Seed script (companies, branches, jobs, applicants, template, submissions)
 - [x] HTTP foundation (Fastify, Swagger, error handler, logging)
 - [x] Companies CRUD (search + pagination cap)
-- [ ] Branches CRUD
-- [ ] Jobs CRUD
+- [x] Branches CRUD
+- [x] Jobs CRUD
 - [ ] Applicants CRUD
 - [ ] Assessment templates CRUD
 - [ ] Submissions (snapshot correctness/weight)
