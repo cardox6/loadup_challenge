@@ -8,8 +8,8 @@
 - [x] Branches CRUD
 - [x] Jobs CRUD
 - [x] Applicants CRUD
-- [ ] Assessment templates CRUD
-- [ ] Submissions (snapshot correctness/weight)
+- [x] Assessment templates CRUD
+- [x] Submissions (snapshot correctness/weight)
 - [ ] Matches (negative marking, recency, location bonus)
 - [ ] Jobs/:id/top-candidates
 - [ ] Stats endpoint
