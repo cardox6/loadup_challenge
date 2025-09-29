@@ -12,12 +12,14 @@
     "db:down": "docker compose down -v",
     "migrate": "prisma migrate dev",
     "seed": "tsx prisma/seed.ts",
+    "seed:verify": "tsx scripts/verify-seed.ts",
     "test": "vitest run"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@faker-js/faker": "^10.0.0",
     "@fastify/swagger": "^9.5.2",
     "@fastify/swagger-ui": "^5.2.3",
     "@prisma/client": "^6.16.2",
