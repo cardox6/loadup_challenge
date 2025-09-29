@@ -1,0 +1,9 @@
+﻿node_modules/
+.env
+.docs/
+dist/
+coverage/
+.vscode/
+.prisma/
+/src/generated/prisma/
+.github/
