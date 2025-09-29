@@ -10,7 +10,7 @@
 - [x] Applicants CRUD
 - [x] Assessment templates CRUD
 - [x] Submissions (snapshot correctness/weight)
-- [ ] Matches (negative marking, recency, location bonus)
-- [ ] Jobs/:id/top-candidates
+- [x] Matches (negative marking, recency, location bonus)
+- [x] Jobs/:id/top-candidates
 - [ ] Stats endpoint
 - [ ] README update (run instructions, schema, endpoints, scoring, scalability)
