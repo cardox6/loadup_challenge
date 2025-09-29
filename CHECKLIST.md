@@ -12,5 +12,5 @@
 - [x] Submissions (snapshot correctness/weight)
 - [x] Matches (negative marking, recency, location bonus)
 - [x] Jobs/:id/top-candidates
-- [ ] Stats endpoint
-- [ ] README update (run instructions, schema, endpoints, scoring, scalability)
+- [x] Stats endpoint
+- [x] README update (run instructions, schema, endpoints, scoring, scalability)
