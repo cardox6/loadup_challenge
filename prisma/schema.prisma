@@ -13,3 +13,97 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model Company {
+  id  String @id @default(cuid())
+  name  String  @unique
+  createdAt DateTime  @default(now())
+  branches  Branch[]
+  jobs  Job[]
+}
+
+model Branch {
+  id  String @id @default(cuid())
+  companyId String
+  city  String
+  createdAt DateTime @default(now())
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+}
+
+model Job {
+  id  String @id @default(cuid())
+  companyId String
+  title String
+  templateId  String?
+  createdAt DateTime @default(now())
+  company Company @relation(fields: [companyId], references: [id])
+  template  AssessmentTemplate? @relation(fields: [templateId], references: [id])
+
+  @@index([companyId])
+  @@index([templateId])
+}
+
+model Applicant {
+  id  String @id @default(cuid())
+  name  String
+  email String @unique
+  city  String?
+  createdAt DateTime @default(now())
+  submissions Submission[]
+
+  @@index([createdAt, id])
+  @@index([name])
+  @@index([email])
+  @@index([city])
+}
+
+model AssessmentTemplate {
+  id  String   @id @default(cuid())
+  title String
+  profileKey  String
+  createdAt DateTime @default(now())
+  items AssessmentItem[]
+  submissions Submission[]
+  jobs Job[]
+}
+
+model AssessmentItem {
+  id  String @id @default(cuid())
+  templateId  String
+  text  String
+  correctOption Int
+  weight Int  @default(1)
+  template  AssessmentTemplate @relation(fields: [templateId], references: [id])
+  answers SubmissionAnswer[]
+
+  @@index([templateId])
+}
+
+model Submission {
+  id  String @id @default(cuid())
+  applicantId String
+  templateId  String
+  submittedAt DateTime
+  applicant Applicant @relation(fields: [applicantId], references: [id])
+  template  AssessmentTemplate @relation(fields: [templateId], references: [id])
+  answers SubmissionAnswer[]
+
+  @@index([applicantId, submittedAt])
+  @@index([templateId])
+}
+
+model SubmissionAnswer {
+  id  String @id @default(cuid())
+  submissionId  String
+  itemId  String
+  chosenOption  Int
+  isCorrect Boolean
+  itemWeight  Int
+  submission  Submission @relation(fields: [submissionId], references: [id])
+  item  AssessmentItem @relation(fields: [itemId], references: [id])
+
+  @@index([submissionId])
+  @@index([itemId])
+}
