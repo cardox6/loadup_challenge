@@ -2,8 +2,8 @@
 
 - [x] Project bootstrap (Fastify hello, Docker Compose, Prisma init)
 - [x] Prisma schema + migration
-- [ ] Seed script (companies, branches, jobs, applicants, template, submissions)
-- [ ] HTTP foundation (Fastify, Swagger, error handler, logging)
+- [x] Seed script (companies, branches, jobs, applicants, template, submissions)
+- [x] HTTP foundation (Fastify, Swagger, error handler, logging)
 - [ ] Companies CRUD (search + pagination cap)
 - [ ] Branches CRUD
 - [ ] Jobs CRUD
