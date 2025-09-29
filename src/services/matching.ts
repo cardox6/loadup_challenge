@@ -1,5 +1,4 @@
 // src/services/matching.ts
-
 import type { PrismaClient } from "../generated/prisma/index.js";
 
 export type MatchParams = {
@@ -14,32 +13,48 @@ export type MatchParams = {
   cityEqualsBranch?: boolean;
 };
 
-export async function matchCandidates(prisma: PrismaClient, p: MatchParams) {
+export async function matchCandidates(prisma: PrismaClient, p: MatchParams): Promise<any[]> {
   const neg = Math.max(0, Math.min(1, p.negativeMarkingFraction));
   const recencyDays = Math.max(0, p.recencyWindowDays);
   const recencyPct = Math.max(0, Math.min(100, p.recencyBoostPct));
   const locFixed = Math.max(0, p.locationBonusFixed);
   const locPct = Math.max(0, Math.min(100, p.locationBonusPctOfRaw));
 
-  const job = await prisma.job.findUnique({ where: { id: p.jobId }, select: { templateId: true, companyId: true } });
-  const branch = await prisma.branch.findUnique({ where: { id: p.branchId }, select: { city: true, companyId: true } });
+  const job = await prisma.job.findUnique({
+    where: { id: p.jobId },
+    select: { templateId: true, companyId: true }
+  });
+  const branch = await prisma.branch.findUnique({
+    where: { id: p.branchId },
+    select: { city: true, companyId: true }
+  });
+
   if (!job || !branch) throw new Error("NOT_FOUND");
   if (job.companyId !== branch.companyId) throw new Error("DIFF_COMPANY");
   if (!job.templateId) throw new Error("NO_TEMPLATE");
 
-  const params: any[] = [
-    p.branchId,
-    job.templateId,
-    neg,
-    recencyDays,
-    recencyPct,
-    locFixed,
-    locPct
-  ];
-  const whereCity = p.cityEqualsBranch ? "WHERE a.city = $8" : "";
-  if (p.cityEqualsBranch) params.push(branch.city);
-  params.push(p.limit);
+  // If there are no submissions for this template, return [] instead of 500
+  const subCount = await prisma.submission.count({ where: { templateId: job.templateId } });
+  if (subCount === 0) return [];
 
+  const params: any[] = [
+    p.branchId,     // $1
+    job.templateId, // $2
+    neg,            // $3
+    recencyDays,    // $4
+    recencyPct,     // $5
+    locFixed,       // $6
+    locPct          // $7
+  ];
+
+  const whereCity = p.cityEqualsBranch ? "WHERE a.city = $8" : "";
+  if (p.cityEqualsBranch) params.push(branch.city); // $8
+  params.push(p.limit); // last param
+  
+  const limitParam = `$${params.length}::int`;
+
+  // NOTE: use make_interval(days => $4::int) instead of ($4 || ' days')::interval
+  // and cast numeric params explicitly to avoid type errors.
   const sql = `
     WITH branch_ctx AS (
       SELECT b."id" AS branch_id, b.city AS branch_city
@@ -70,13 +85,17 @@ export async function matchCandidates(prisma: PrismaClient, p: MatchParams) {
         agg.last_submission_at,
         agg.correct_weight,
         agg.wrong_weight,
-        (agg.correct_weight - $3 * agg.wrong_weight) AS raw_score,
-        CASE WHEN agg.last_submission_at >= (NOW() - ($4 || ' days')::interval)
-             THEN (agg.correct_weight - $3 * agg.wrong_weight) * ($5 / 100.0)
-             ELSE 0 END AS recency_boost,
-        CASE WHEN a.city IS NOT NULL AND a.city = bc.branch_city
-             THEN $6 + ((agg.correct_weight - $3 * agg.wrong_weight) * ($7 / 100.0))
-             ELSE 0 END AS location_bonus,
+        (agg.correct_weight - $3::numeric * agg.wrong_weight) AS raw_score,
+        CASE
+          WHEN agg.last_submission_at >= (NOW() - make_interval(days => $4::int))
+          THEN (agg.correct_weight - $3::numeric * agg.wrong_weight) * ($5::numeric / 100.0)
+          ELSE 0
+        END AS recency_boost,
+        CASE
+          WHEN a.city IS NOT NULL AND a.city = bc.branch_city
+          THEN $6::numeric + ((agg.correct_weight - $3::numeric * agg.wrong_weight) * ($7::numeric / 100.0))
+          ELSE 0
+        END AS location_bonus,
         (a.city IS NOT NULL AND a.city = bc.branch_city) AS location_matched
       FROM agg
       JOIN "Applicant" a ON a."id" = agg."applicantId"
@@ -86,7 +105,7 @@ export async function matchCandidates(prisma: PrismaClient, p: MatchParams) {
     final_scores AS (
       SELECT
         applicant_id, last_submission_at, correct_weight, wrong_weight,
-        raw_score, recency_boost, location_bonus,
+        raw_score, recency_boost, location_bonus, location_matched,
         (raw_score + recency_boost + location_bonus) AS total
       FROM base_scores
     )
@@ -94,7 +113,7 @@ export async function matchCandidates(prisma: PrismaClient, p: MatchParams) {
       applicant_id AS "applicantId",
       total,
       raw_score AS raw,
-      GREATEST(0, $3 * wrong_weight) AS negative_penalty,
+      GREATEST(0, $3::numeric * wrong_weight) AS negative_penalty,
       recency_boost,
       location_bonus,
       last_submission_at AS "lastSubmissionAt",
@@ -103,10 +122,11 @@ export async function matchCandidates(prisma: PrismaClient, p: MatchParams) {
       location_matched AS "locationMatched"
     FROM final_scores
     ORDER BY total DESC, raw DESC, last_submission_at DESC, applicant_id ASC
-    LIMIT $${params.length}
+    LIMIT ${limitParam}
   `;
 
   const rows = await prisma.$queryRawUnsafe<any[]>(sql, ...params);
+
   return rows.map(r => ({
     applicantId: r.applicantId,
     total: Number(r.total),
