@@ -43,6 +43,7 @@ app.register(swaggerUi, {
 // Routes
 app.register((await import("./routes/health.js")).default);
 app.register((await import("./routes/companies.js")).default);
+app.register((await import("./routes/branches.js")).default);
 
 
 // Error handler

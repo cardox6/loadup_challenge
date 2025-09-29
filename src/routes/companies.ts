@@ -7,7 +7,7 @@ import { HttpError } from "../lib/httpError.js";
 
 export default async function companies(app: FastifyInstance) {
     // Create company
-    app.post('/companies', async (req, reply) => {
+    app.post("/companies", async (req, reply) => {
         const body = parse(CreateCompany, req.body);
         try {
             const created = await prisma.company.create({ data: { name: body.name } });
