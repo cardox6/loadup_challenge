@@ -4,6 +4,17 @@ import { faker } from "@faker-js/faker";
 
 const prisma = new PrismaClient();
 
+// Clear existing data (respecting FK constraints)
+await prisma.submissionAnswer.deleteMany();
+await prisma.submission.deleteMany();
+await prisma.applicant.deleteMany();
+await prisma.job.deleteMany();
+await prisma.branch.deleteMany();
+await prisma.company.deleteMany();
+await prisma.assessmentItem.deleteMany();
+await prisma.assessmentTemplate.deleteMany();
+
+
 // ---- Tunables (override via env) ----
 const COMPANY_COUNT         = Number(process.env.SEED_COMPANIES ?? 4);
 const BRANCHES_PER_COMPANY  = Number(process.env.SEED_BRANCHES ?? 2);
