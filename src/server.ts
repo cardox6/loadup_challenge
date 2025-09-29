@@ -46,6 +46,9 @@ app.register((await import("./routes/companies.js")).default);
 app.register((await import("./routes/branches.js")).default);
 app.register((await import("./routes/jobs.js")).default);
 app.register((await import("./routes/applicants.js")).default);
+app.register((await import("./routes/assessment-templates.js")).default);
+app.register((await import("./routes/submissions.js")).default);
+app.register((await import("./routes/sample.js")).default);
 
 // Error handler
 app.setErrorHandler((err, req, reply) => {
