@@ -1,7 +1,7 @@
 // src/lib/validate.ts
 
 import { z, ZodError } from 'zod';
-import { HttpError } from './httpError';
+import { HttpError } from './httpError.js';
 
 export function parse<T>(schema: z.ZodType<T>, data: unknown): T {
     try {

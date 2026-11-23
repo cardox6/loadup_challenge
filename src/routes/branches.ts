@@ -14,17 +14,15 @@ export default async function branches(app: FastifyInstance) {
             body: CreateBranchBody,
             tags: ['Branches'],
             summary: 'Create a new branch',
-            description: 'Creates a new branch for a company with name and location',
+            description: 'Creates a new branch for a company in a given city',
             response: {
                 201: {
                     type: 'object',
                     properties: {
                         id: { type: 'string' },
-                        name: { type: 'string' },
                         companyId: { type: 'string' },
-                        location: { type: 'string' },
-                        createdAt: { type: 'string', format: 'date-time' },
-                        updatedAt: { type: 'string', format: 'date-time' }
+                        city: { type: 'string' },
+                        createdAt: { type: 'string', format: 'date-time' }
                     }
                 }
             }
@@ -43,7 +41,7 @@ export default async function branches(app: FastifyInstance) {
             querystring: BranchesQuery,
             tags: ['Branches'],
             summary: 'List branches',
-            description: 'Get a paginated list of branches with optional filtering by company or location',
+            description: 'Get a paginated list of branches with optional filtering by company or city',
             response: {
                 200: {
                     type: 'object',
@@ -54,11 +52,9 @@ export default async function branches(app: FastifyInstance) {
                                 type: 'object',
                                 properties: {
                                     id: { type: 'string' },
-                                    name: { type: 'string' },
                                     companyId: { type: 'string' },
-                                    location: { type: 'string' },
-                                    createdAt: { type: 'string', format: 'date-time' },
-                                    updatedAt: { type: 'string', format: 'date-time' }
+                                    city: { type: 'string' },
+                                    createdAt: { type: 'string', format: 'date-time' }
                                 }
                             }
                         },
@@ -100,11 +96,9 @@ export default async function branches(app: FastifyInstance) {
                     type: 'object',
                     properties: {
                         id: { type: 'string' },
-                        name: { type: 'string' },
                         companyId: { type: 'string' },
-                        location: { type: 'string' },
-                        createdAt: { type: 'string', format: 'date-time' },
-                        updatedAt: { type: 'string', format: 'date-time' }
+                        city: { type: 'string' },
+                        createdAt: { type: 'string', format: 'date-time' }
                     }
                 }
             }

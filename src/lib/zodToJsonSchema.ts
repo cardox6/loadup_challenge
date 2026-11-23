@@ -37,7 +37,7 @@ export const BranchesQuery = {
     properties: {
         limit: { type: 'integer', minimum: 1, maximum: 100, default: 25, description: 'Number of items to return' },
         offset: { type: 'integer', minimum: 0, default: 0, description: 'Number of items to skip' },
-        search: { type: 'string', description: 'Search branch name (optional)' },
+        city: { type: 'string', description: 'Filter by city (optional)' },
         companyId: { type: 'string', description: 'Filter by company ID (optional)' }
     }
 };
@@ -85,11 +85,10 @@ export const CreateCompanyBody = {
 export const CreateBranchBody = {
     type: 'object',
     properties: {
-        name: { type: 'string', minLength: 1, description: 'Branch name' },
         companyId: { type: 'string', description: 'Company ID' },
-        location: { type: 'string', description: 'Branch location' }
+        city: { type: 'string', minLength: 2, maxLength: 100, description: 'Branch city' }
     },
-    required: ['name', 'companyId', 'location']
+    required: ['companyId', 'city']
 };
 
 export const CreateJobBody = {

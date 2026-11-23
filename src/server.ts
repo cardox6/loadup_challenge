@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { randomUUID } from 'crypto';
-import { errorBody, HttpError } from './lib/httpError';
+import { errorBody, HttpError } from './lib/httpError.js';
 
 dotenv.config();
 
@@ -58,6 +58,11 @@ app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) {
         app.log.warn({ err, rid: req.id }, "client error");
         return reply.code(err.status).send(errorBody(err));
+    }
+    // Fastify's own client errors (schema validation, malformed JSON) keep their 4xx status
+    if (typeof err.statusCode === "number" && err.statusCode >= 400 && err.statusCode < 500) {
+        app.log.warn({ err, rid: req.id }, "client error");
+        return reply.code(err.statusCode).send({ error: { code: err.code ?? "BAD_REQUEST", message: err.message } });
     }
     app.log.error({ err, rid: req.id }, "server error");
     return reply.code(500).send({ error: { code: "INTERNAL_SERVER_ERROR", message: "Internal server error" } });

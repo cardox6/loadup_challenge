@@ -23,10 +23,10 @@ const MatchRequestBody = {
       type: 'object',
       properties: {
         negativeMarkingFraction: { type: 'number', minimum: 0, maximum: 1, default: 0.25, description: 'Penalty fraction for wrong answers (0-1)' },
-        recencyWindowDays: { type: 'integer', minimum: 1, default: 28, description: 'Days within which submissions get recency boost' },
-        recencyBoostPct: { type: 'number', minimum: 0, default: 0.15, description: 'Percentage boost for recent submissions' },
-        locationBonusFixed: { type: 'number', minimum: 0, default: 5, description: 'Fixed points bonus for location match' },
-        locationBonusPctOfRaw: { type: 'number', minimum: 0, default: 0.1, description: 'Percentage of raw score as location bonus' }
+        recencyWindowDays: { type: 'integer', minimum: 0, default: 30, description: 'Days within which submissions get recency boost' },
+        recencyBoostPct: { type: 'number', minimum: 0, maximum: 100, default: 10, description: 'Percentage boost for recent submissions (0-100)' },
+        locationBonusFixed: { type: 'number', minimum: 0, maximum: 100, default: 5, description: 'Fixed points bonus for location match' },
+        locationBonusPctOfRaw: { type: 'number', minimum: 0, maximum: 100, default: 0, description: 'Percentage of raw score as location bonus (0-100)' }
       }
     }
   },
@@ -34,36 +34,18 @@ const MatchRequestBody = {
 };
 
 const MatchResponse = {
-  type: 'object',
-  properties: {
-    matches: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          applicantId: { type: 'string' },
-          applicantName: { type: 'string' },
-          applicantEmail: { type: 'string' },
-          applicantLocation: { type: 'string' },
-          totalScore: { type: 'number' },
-          explanation: { type: 'string' },
-          rawScore: { type: 'number' },
-          recencyBoost: { type: 'number' },
-          locationBonus: { type: 'number' }
-        }
-      }
-    },
-    meta: {
-      type: 'object',
-      properties: {
-        jobId: { type: 'string' },
-        jobTitle: { type: 'string' },
-        branchId: { type: 'string' },
-        branchName: { type: 'string' },
-        branchLocation: { type: 'string' },
-        totalCandidates: { type: 'integer' },
-        scoringConfig: { type: 'object' }
-      }
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      applicantId: { type: 'string' },
+      total: { type: 'number' },
+      raw: { type: 'number' },
+      negativePenalty: { type: 'number' },
+      recencyBoost: { type: 'number' },
+      locationBonus: { type: 'number' },
+      lastSubmissionAt: { type: 'string', format: 'date-time' },
+      explanation: { type: 'object', additionalProperties: true }
     }
   }
 };
