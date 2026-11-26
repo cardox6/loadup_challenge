@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 export const CreateBranch = z.object({
     companyId: z.string().min(1, 'Company ID is required'),
-    city: z.string().min(2).max(100),
+    city: z.string().trim().min(2).max(100),
 });
 
 export const ListBranchesQuery = z.object({

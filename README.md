@@ -2,6 +2,8 @@
 
 This is my solution to a take-home backend challenge for LoadUp's hiring process (September 2025): an API that picks the best applicants for a job at a given branch, based on their assessment results. I built it in TypeScript with Fastify, Prisma, PostgreSQL and Zod: endpoints to create, list, get and delete companies, branches, jobs and applicants; assessment templates and submissions; two ranking endpoints; and a seed script that generates 1,000 applicants. The key design decisions: a submission snapshots each answer's correctness and weight when it's submitted, so later changes to a test don't rewrite old scores; the ranking is one parameterized SQL query with configurable negative marking, recency boost and location bonus; and ties are broken deterministically, with each score's breakdown returned next to it.
 
+Not a developer? [How the product works](docs/how-it-works.md) explains it in plain language.
+
 ## Quick start
 
 You need Node.js 20+ and Docker.
@@ -15,7 +17,7 @@ npm run dev            # API on http://localhost:3000, Swagger UI at http://loca
 Rank some candidates:
 
 ```bash
-curl http://localhost:3000/sample/job-branch    # a job and a branch of the same company
+curl http://localhost:3000/sample/job-branch    # a job and a branch that offers it
 curl "http://localhost:3000/jobs/<jobId>/top-candidates?branchId=<branchId>"
 ```
 
@@ -38,7 +40,7 @@ curl "http://localhost:3000/jobs/<jobId>/top-candidates?branchId=<branchId>"
 |---|---|---|
 | `SEED_COMPANIES` | 4 | logistics companies (DB Schenker, DHL Logistics, Hermes Group, GLS Germany, ...). Names come from a list of six and are unique, so 6 at most. |
 | `SEED_BRANCHES` | 2 | branches per company |
-| `SEED_JOBS` | 2 | jobs per company, each linked to a template by profile (warehouse management, driving and logistics, logistics coordination) |
+| `SEED_JOBS` | 2 | jobs per company, each offered at all of its company's branches and linked to a template by profile (warehouse management, driving and logistics, logistics coordination) |
 | `SEED_TEMPLATES` | 3 | assessment templates |
 | `SEED_ITEMS` | 10 | questions per template. In the warehouse template, safety questions weigh 3 and management questions 2; every other question weighs 1. |
 | `SEED_APPLICANTS` | 1000 | applicants. 70% live in Berlin, Munich, Hamburg, Cologne or Frankfurt, the rest in random cities. |
@@ -62,11 +64,12 @@ One Fastify app. Each resource has its own route file, request bodies and querie
 src/server.ts              Fastify setup, Swagger, correlation id, error handler, routes
 src/routes/                one file per resource, plus health, matches, top-candidates, stats, sample
 src/schemas/               Zod schemas for request validation
-src/lib/                   HttpError, the Zod parse helper, JSON schemas for Swagger
+src/lib/                   HttpError, central error handler, the Zod parse helper, JSON schemas for Swagger
 src/services/matching.ts   the ranking query
-prisma/                    schema, migration, seed
+prisma/                    schema, migrations, seed
 scripts/                   setup and seed verification
 test/                      request-level tests
+docs/                      plain-language product guide
 ```
 
 ### Domain model
@@ -75,6 +78,8 @@ test/                      request-level tests
 erDiagram
     Company ||--o{ Branch : has
     Company ||--o{ Job : posts
+    Job ||--o{ JobBranch : "offered through"
+    Branch ||--o{ JobBranch : offers
     AssessmentTemplate |o--o{ Job : "used by"
     AssessmentTemplate ||--o{ AssessmentItem : contains
     AssessmentTemplate ||--o{ Submission : "taken as"
@@ -97,10 +102,15 @@ erDiagram
         string title
         string templateId FK "optional"
     }
+    JobBranch {
+        string jobId PK, FK
+        string branchId PK, FK
+        string companyId FK
+    }
     Applicant {
         string id PK
         string name
-        string email UK
+        string email "can be shared"
         string city "optional"
     }
     AssessmentTemplate {
@@ -132,9 +142,11 @@ erDiagram
 
 Design decisions:
 
-- A job belongs to a company. The branch is chosen per ranking request and has to belong to the same company, otherwise the API answers 400.
+- A job belongs to a company and is offered at one or more of its branches through `JobBranch`. Both foreign keys include `companyId`, so the database rejects a link to another company's branch. A ranking request names one branch, and the API answers 400 if that branch doesn't offer the job.
+- An email doesn't identify an applicant, because people can share one. It's indexed for search but not unique.
+- Records in use aren't deleted: a company with branches or jobs, a branch offering a job, and an applicant with submissions answer 409. Deleting a job removes its branch links.
 - A job has at most one assessment template, and one template can be used by several jobs.
-- When a submission comes in, the API checks that every answered item belongs to the template, then stores `isCorrect` and `itemWeight` on each answer. Scores are computed from those snapshots, not from the current items.
+- When a submission comes in, the API checks that every answered item belongs to the template and is answered only once, then stores the submission with `isCorrect` and `itemWeight` on each answer in one write. A unique index on `(submissionId, itemId)` backs the once-only rule. Scores are computed from those snapshots, not from the current items.
 - Only an applicant's latest submission for the job's template counts.
 - Scoring runs in SQL: one query with CTEs and `ROW_NUMBER()`, with no N+1 queries.
 - There are indexes on every foreign key and on the applicant search fields (`name`, `email`, `city`, and `createdAt, id`).
@@ -148,7 +160,8 @@ Errors have one shape:
 { "error": { "code": "BAD_REQUEST", "message": "Validation failed", "fields": { "email": ["Invalid email format"] } } }
 ```
 
-- Validation failures (Zod, the route JSON Schemas and malformed JSON) are 400, Zod ones with the messages per field, missing records 404, unique conflicts 409 (company name, applicant email, template `profileKey`), and anything unexpected 500 with a generic message and no stack trace.
+- Validation failures (Zod, the route JSON Schemas and malformed JSON) are 400, with messages per field for Zod and schema errors. Missing records are 404, conflicts are 409 (company name, template `profileKey`, or deleting a record still in use), and anything unexpected is 500 with a generic message and no stack trace.
+- Routes check these conditions before writing. One central handler (`src/lib/errorHandler.ts`) produces every error response and also covers the race where data changes between the check and the write.
 - The correlation id comes from the `x-request-id` header when the client sends one (otherwise Fastify's request id) and is logged with every error.
 - Logs are pretty-printed in development and JSON in production (`NODE_ENV=production`, level from `LOG_LEVEL`). Prisma logs its queries when `NODE_ENV=development`.
 
@@ -222,30 +235,30 @@ Each ranked entry carries its breakdown:
 
 ## API
 
-Swagger UI runs at `/docs`. The companies, branches and matches routes have JSON Schemas for it; they're written by hand next to the Zod schemas (`src/lib/zodToJsonSchema.ts`, `src/routes/matches.ts`), not generated from them. The other routes show up without parameter schemas.
+Swagger UI runs at `/docs`. The companies, branches and matches routes and `POST /jobs` have JSON Schemas for it; they're written by hand next to the Zod schemas (`src/lib/zodToJsonSchema.ts`, `src/routes/matches.ts`), not generated from them. The other routes show up without parameter schemas.
 
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/health` | `{ "ok": true }` |
 | `POST` | `/companies` | `name`; 409 if the name exists |
 | `GET` | `/companies` | `search` (name contains, case-insensitive), `limit`, `offset` |
-| `GET`, `DELETE` | `/companies/:id` | 404 if it doesn't exist |
+| `GET`, `DELETE` | `/companies/:id` | 404 if it doesn't exist; `DELETE` answers 409 while it has branches or jobs |
 | `POST` | `/branches` | `companyId`, `city`; 400 if the company doesn't exist |
 | `GET` | `/branches` | `companyId`, `city` (contains, case-insensitive), `limit`, `offset` |
-| `GET`, `DELETE` | `/branches/:id` | 404 if it doesn't exist |
-| `POST` | `/jobs` | `companyId`, `title`, optional `templateId`; 400 if the company or template doesn't exist |
-| `GET` | `/jobs` | `companyId`, `title` (contains, case-insensitive), `limit`, `offset` |
+| `GET`, `DELETE` | `/branches/:id` | 404 if it doesn't exist; `DELETE` answers 409 while it offers a job |
+| `POST` | `/jobs` | `companyId`, `title`, `branchIds` (at least one), optional `templateId`; 400 if the company or template doesn't exist or a branch isn't the company's |
+| `GET` | `/jobs` | `companyId`, `branchId`, `title` (contains, case-insensitive), `limit`, `offset`. Each job includes its `branchIds`. |
 | `GET`, `DELETE` | `/jobs/:id` | 404 if it doesn't exist |
-| `POST` | `/applicants` | `name`, `email`, optional `city`; 409 if the email exists |
+| `POST` | `/applicants` | `name`, `email` (can be shared), optional `city` |
 | `GET` | `/applicants` | `q` (name, email or city contains), `city` (exact, case-insensitive), `limit`, `offset` |
-| `GET`, `DELETE` | `/applicants/:id` | 404 if it doesn't exist |
+| `GET`, `DELETE` | `/applicants/:id` | 404 if it doesn't exist; `DELETE` answers 409 while it has submissions |
 | `POST` | `/assessment-templates` | `title`, `profileKey` (409 if taken), `items` with `text`, `correctOption` (0 to 3) and `weight` (1 to 10, default 1) |
 | `GET` | `/assessment-templates/:id` | the template with its items |
-| `POST` | `/submissions` | `applicantId`, `templateId`, optional `submittedAt`, `answers` with `itemId` and `chosenOption`; 400 if the applicant or template doesn't exist or an item isn't part of the template. Returns the submission and a `summary` with `answered`, `correctWeight` and `wrongWeight`. |
+| `POST` | `/submissions` | `applicantId`, `templateId`, optional `submittedAt`, `answers` with `itemId` and `chosenOption`; 400 if the applicant or template doesn't exist, an item isn't part of the template, or an item is answered twice. Returns the submission and a `summary` with `answered`, `correctWeight` and `wrongWeight`. |
 | `POST` | `/matches` | ranked candidates, body below |
-| `GET` | `/jobs/:id/top-candidates` | `branchId` (required), `limit` (default 5). Same ranking with the default parameters. |
-| `GET` | `/stats` | row counts for all eight tables |
-| `GET` | `/sample/job-branch` | a job and a branch of the same company, for trying the ranking |
+| `GET` | `/jobs/:id/top-candidates` | `branchId` (required), `limit` (1 to 100, default 5). Same ranking with the default parameters. |
+| `GET` | `/stats` | row counts for all nine tables |
+| `GET` | `/sample/job-branch` | a job with an assessment and a branch that offers it, for trying the ranking |
 
 ```bash
 curl -X POST http://localhost:3000/matches \
@@ -265,17 +278,18 @@ curl -X POST http://localhost:3000/matches \
   }'
 ```
 
-Both ranking endpoints answer 404 if the job or branch doesn't exist, and 400 if they belong to different companies or the job has no template.
+Both ranking endpoints answer 404 if the job or branch doesn't exist, and 400 if they belong to different companies, the branch doesn't offer the job, or the job has no template.
 
 ## Testing
 
-The tests are request-level: Vitest and Supertest against the running server on `http://localhost:3000`. Postgres has to be up and seeded, and `npm run dev` running.
+The tests are request-level: Vitest and Supertest against the running server on `http://localhost:3000`, or the address in `API_URL`. Postgres has to be up and seeded, and `npm run dev` running.
 
 | File | What it checks |
 |---|---|
 | `test/health.stats.test.ts` | `GET /health` returns `{ ok: true }`; `GET /stats` returns counts |
 | `test/errors.validation.test.ts` | a duplicate company name gives 409; an unknown company gives 404 with an error code; a job and branch from different companies give 400 or 404 |
 | `test/matches.happy.test.ts` | `POST /matches` returns a ranked array whose entries have `applicantId`, `total`, `raw`, `lastSubmissionAt` and an `explanation` |
+| `test/records.rules.test.ts` | input validation, shared applicant emails, job and branch rules, deletes blocked by records in use, and answers counted once per item |
 
 ```bash
 npm run dev                 # terminal 1
@@ -283,13 +297,14 @@ npm test                    # terminal 2, all tests
 npm test -- matches.happy   # one file
 ```
 
-The matches test fails until the first known issue below is fixed.
+The tests add rows to the database. Run `npm run seed` to reset it.
 
 ## Trade-offs and what I'd do next
 
 Trade-offs and limits:
 
-- Jobs belong to companies and the branch is a request parameter, instead of a separate JobOpening entity.
+- `JobBranch` only records where a job is offered. Per-branch details such as headcount or status would need a richer job-opening entity.
+- With shared emails, the API can't detect someone registering twice. That needs a separate identity check, such as a login or phone verification.
 - No authentication or authorization. The focus was the matching logic.
 - OFFSET pagination: simple, but slower for deep pages. The `(createdAt, id)` index on applicants is already there for keyset pagination.
 - Scores are computed per request instead of precomputed, so the parameters can change on every call, at the cost of re-aggregating each time. `/jobs/:id/top-candidates` is a thin wrapper around the same service with fixed defaults, which makes it the natural place for a short-TTL cache (Redis, for example) when hiring managers keep opening the same top five.
@@ -300,7 +315,7 @@ What I'd do next:
 
 - Generate the Swagger schemas from the Zod schemas (Zod 4 has `z.toJSONSchema`) so validation and docs can't drift apart.
 - Build the app in a function so tests can use `app.inject` against a throwaway database, and test the scoring math, tie-breaking and parameter defaults directly.
-- Update endpoints (there are none yet), JWT-based auth with roles, and API versioning.
+- Update endpoints (there are none yet, so changing a job's branches means recreating it), JWT-based auth with roles, and API versioning.
 - Keyset pagination, caching for top candidates, read replicas and background jobs for bulk operations, once the volume calls for it.
 
 ## AI assistance
@@ -315,7 +330,7 @@ I used AI assistance (GitHub Copilot) during this challenge to speed up developm
 
 All final design decisions, the domain model and the implementation were reviewed, tested and integrated by me.
 
-In November 2026 I used Claude to restructure this README and to fix the response-schema, error-handling, branch-schema and build issues I found while reviewing the code.
+In November 2026 I used Claude to restructure this README and to fix the response-schema, error-handling, branch-schema and build issues I found while reviewing the code, and to address review feedback on error handling, the Job and Branch relation, and shared applicant emails.
 
 ## License
 

@@ -3,7 +3,7 @@
 import { z } from 'zod';
 
 export const CreateCompany = z.object({
-    name: z.string().min(1, 'Name is required')
+    name: z.string().trim().min(1, 'Name is required')
 });
 
 export const ListCompaniesQuery = z.object({

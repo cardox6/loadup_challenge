@@ -37,26 +37,25 @@ export default async function submissions(app: FastifyInstance) {
         // Create submission, snapshot isCorrect + itemWeight
         const submittedAt = body.submittedAt ?? new Date();
 
-        const submission = await prisma.submission.create({ 
-            data: {
-                applicantId: body.applicantId,
-                templateId: body.templateId,
-                submittedAt }
-        });
-
         const answersData = body.answers.map(a => {
             const meta = itemMap.get(a.itemId)!;
-            const isCorrect = a.chosenOption === meta.correctOption;
             return {
-                submissionId: submission.id,
                 itemId: a.itemId,
                 chosenOption: a.chosenOption,
-                isCorrect,
+                isCorrect: a.chosenOption === meta.correctOption,
                 itemWeight: meta.weight
             };
         });
 
-        await prisma.submissionAnswer.createMany({ data: answersData });
+        // One nested write, so the submission and its answers are saved together or not at all
+        const submission = await prisma.submission.create({
+            data: {
+                applicantId: body.applicantId,
+                templateId: body.templateId,
+                submittedAt,
+                answers: { createMany: { data: answersData } }
+            }
+        });
 
         const correctWeight = answersData.reduce((s, x) => s + (x.isCorrect ? x.itemWeight : 0), 0);
         const wrongWeight = answersData.reduce((s, x) => s + (!x.isCorrect ? x.itemWeight : 0), 0);

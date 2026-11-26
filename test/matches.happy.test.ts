@@ -3,25 +3,19 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 
-const BASE = "http://localhost:3000";
+const BASE = process.env.API_URL ?? "http://localhost:3000";
 
-async function getJobAndBranchFromSameCompany() {
-  // get one job
-  const jr = await request(BASE).get("/jobs?limit=1");
-  if (jr.status !== 200 || !jr.body?.data?.length) throw new Error("No jobs found");
-  const job = jr.body.data[0];
+async function getJobAndOfferingBranch() {
+  // only a job with an assessment can be ranked
+  const jr = await request(BASE).get("/sample/job-branch");
+  if (jr.status !== 200 || !jr.body?.job) throw new Error("No rankable job found");
 
-  // find a branch with same companyId
-  const br = await request(BASE).get(`/branches?companyId=${job.companyId}&limit=1`);
-  if (br.status !== 200 || !br.body?.data?.length) throw new Error("No branch found for job.companyId");
-  const branch = br.body.data[0];
-
-  return { jobId: job.id, branchId: branch.id };
+  return { jobId: jr.body.job.id, branchId: jr.body.branch.id };
 }
 
 describe("matches (happy path)", () => {
   it("returns ranked candidates with explanations", async () => {
-    const { jobId, branchId } = await getJobAndBranchFromSameCompany();
+    const { jobId, branchId } = await getJobAndOfferingBranch();
 
     const r = await request(BASE)
       .post("/matches")

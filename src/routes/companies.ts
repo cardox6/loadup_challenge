@@ -28,13 +28,10 @@ export default async function companies(app: FastifyInstance) {
         })
     }, async (req, reply) => {
         const body = parse(CreateCompany, req.body);
-        try {
-            const created = await prisma.company.create({ data: { name: body.name } });
-            return reply.code(201).send(created);
-        } catch (e: any) {
-            if (e?.code === "P2002") throw new HttpError(409, "CONFLICT", "Company with this name already exists");
-            throw e;
-        }
+        const existing = await prisma.company.findUnique({ where: { name: body.name }, select: { id: true } });
+        if (existing) throw new HttpError(409, "CONFLICT", "Company with this name already exists");
+        const created = await prisma.company.create({ data: { name: body.name } });
+        return reply.code(201).send(created);
     });
 
     // List (search + pagination)
@@ -125,11 +122,16 @@ export default async function companies(app: FastifyInstance) {
         })
     }, async (req, reply) => {
         const { id } = req.params as { id: string };
-        try {
-            await prisma.company.delete({ where: { id } });
-            return reply.code(204).send();
-        } catch {
-            throw new HttpError(404, "NOT_FOUND", "Company not found");
+        const company = await prisma.company.findUnique({
+            where: { id },
+            select: { _count: { select: { branches: true, jobs: true } } }
+        });
+        if (!company) throw new HttpError(404, "NOT_FOUND", "Company not found");
+        const { branches, jobs } = company._count;
+        if (branches > 0 || jobs > 0) {
+            throw new HttpError(409, "CONFLICT", `Company still has ${branches} branch(es) and ${jobs} job(s). Delete those first.`);
         }
+        await prisma.company.delete({ where: { id } });
+        return reply.code(204).send();
     });
 }

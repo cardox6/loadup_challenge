@@ -8,6 +8,7 @@ const prisma = new PrismaClient();
 await prisma.submissionAnswer.deleteMany();
 await prisma.submission.deleteMany();
 await prisma.applicant.deleteMany();
+await prisma.jobBranch.deleteMany();
 await prisma.job.deleteMany();
 await prisma.branch.deleteMany();
 await prisma.company.deleteMany();
@@ -71,13 +72,17 @@ async function main() {
 
   // 1) Companies, branches
   const companies = [];
+  const branchIdsByCompany = new Map<string, string[]>();
   for (let c = 0; c < COMPANY_COUNT; c++) {
     const companyName = COMPANY_NAMES[c % COMPANY_NAMES.length] || `Company ${c + 1}`;
     const company = await prisma.company.create({ data: { name: companyName } });
     companies.push(company);
+    const branchIds: string[] = [];
     for (let b = 0; b < BRANCHES_PER_COMPANY; b++) {
-      await prisma.branch.create({ data: { companyId: company.id, city: pickCity() } });
+      const branch = await prisma.branch.create({ data: { companyId: company.id, city: pickCity() } });
+      branchIds.push(branch.id);
     }
+    branchIdsByCompany.set(company.id, branchIds);
   }
 
   // 2) Templates & items (with weighted question categories)
@@ -122,7 +127,8 @@ async function main() {
         data: {
           companyId: company.id,
           title: `${profile.title} - ${company.name}`,
-          templateId: template?.id ?? null
+          templateId: template?.id ?? null,
+          branches: { createMany: { data: branchIdsByCompany.get(company.id)!.map((branchId) => ({ branchId })) } }
         }
       });
       jobIndex++;

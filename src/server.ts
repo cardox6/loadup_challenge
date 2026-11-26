@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { randomUUID } from 'crypto';
-import { errorBody, HttpError } from './lib/httpError.js';
+import { errorHandler } from './lib/errorHandler.js';
 
 dotenv.config();
 
@@ -54,19 +54,7 @@ app.register((await import("./routes/top-candidates.js")).default);
 app.register((await import("./routes/stats.js")).default);
 
 // Error handler
-app.setErrorHandler((err, req, reply) => {
-    if (err instanceof HttpError) {
-        app.log.warn({ err, rid: req.id }, "client error");
-        return reply.code(err.status).send(errorBody(err));
-    }
-    // Fastify's own client errors (schema validation, malformed JSON) keep their 4xx status
-    if (typeof err.statusCode === "number" && err.statusCode >= 400 && err.statusCode < 500) {
-        app.log.warn({ err, rid: req.id }, "client error");
-        return reply.code(err.statusCode).send({ error: { code: err.code ?? "BAD_REQUEST", message: err.message } });
-    }
-    app.log.error({ err, rid: req.id }, "server error");
-    return reply.code(500).send({ error: { code: "INTERNAL_SERVER_ERROR", message: "Internal server error" } });
-});
+app.setErrorHandler(errorHandler);
 
 const PORT = Number(process.env.PORT) || 3000;
 app.listen({ port: PORT, host: '0.0.0.0' }).then(() => {

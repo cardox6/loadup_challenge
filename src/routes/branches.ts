@@ -126,11 +126,15 @@ export default async function branches(app: FastifyInstance) {
         })
     }, async (req, reply) => {
         const { id } = req.params as { id: string };
-        try {
-            await prisma.branch.delete({ where: { id } });
-        } catch {
-            throw new HttpError(404, "NOT_FOUND", "Branch not found");
+        const branch = await prisma.branch.findUnique({
+            where: { id },
+            select: { _count: { select: { jobs: true } } }
+        });
+        if (!branch) throw new HttpError(404, "NOT_FOUND", "Branch not found");
+        if (branch._count.jobs > 0) {
+            throw new HttpError(409, "CONFLICT", `Branch still offers ${branch._count.jobs} job(s). Delete those first.`);
         }
+        await prisma.branch.delete({ where: { id } });
         return reply.code(204).send();
     });
 }

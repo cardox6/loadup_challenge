@@ -3,7 +3,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 
-const BASE = "http://localhost:3000";
+const BASE = process.env.API_URL ?? "http://localhost:3000";
 
 describe("errors & validation", () => {
   it("creating duplicate company name returns 409", async () => {

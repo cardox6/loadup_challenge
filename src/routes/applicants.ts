@@ -10,13 +10,8 @@ export default async function applicants(app: FastifyInstance) {
     // Create applicant
     app.post("/applicants", async (req, reply) => {
         const body = parse(CreateApplicant, req.body);
-        try {
-            const created = await prisma.applicant.create({ data: { ...body, city: body.city ?? null } });
-            return reply.code(201).send(created);
-        } catch (e: any) {
-            if (e?.code === "P2002") throw new HttpError(409, "CONFLICT", "Applicant with this email already exists");
-            throw e;
-        }
+        const created = await prisma.applicant.create({ data: { ...body, city: body.city ?? null } });
+        return reply.code(201).send(created);
     });
 
     // List (search + pagination)
@@ -54,8 +49,15 @@ export default async function applicants(app: FastifyInstance) {
     // Delete by id
     app.delete("/applicants/:id", async (req, reply) => {
         const { id } = req.params as { id: string };
-        try { await prisma.applicant.delete({ where: { id } }); }
-        catch { throw new HttpError(404, "NOT_FOUND", "Applicant not found"); }
+        const applicant = await prisma.applicant.findUnique({
+            where: { id },
+            select: { _count: { select: { submissions: true } } }
+        });
+        if (!applicant) throw new HttpError(404, "NOT_FOUND", "Applicant not found");
+        if (applicant._count.submissions > 0) {
+            throw new HttpError(409, "CONFLICT", `Applicant has ${applicant._count.submissions} assessment submission(s), which are kept for audit.`);
+        }
+        await prisma.applicant.delete({ where: { id } });
         return reply.code(204).send();
     });
 }

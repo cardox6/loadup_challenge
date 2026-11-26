@@ -1,5 +1,6 @@
 // src/services/matching.ts
 import type { PrismaClient } from "../generated/prisma/index.js";
+import { HttpError } from "../lib/httpError.js";
 
 export type MatchParams = {
   jobId: string;
@@ -22,16 +23,21 @@ export async function matchCandidates(prisma: PrismaClient, p: MatchParams): Pro
 
   const job = await prisma.job.findUnique({
     where: { id: p.jobId },
-    select: { templateId: true, companyId: true }
+    select: {
+      templateId: true,
+      companyId: true,
+      branches: { where: { branchId: p.branchId }, select: { branchId: true } }
+    }
   });
   const branch = await prisma.branch.findUnique({
     where: { id: p.branchId },
     select: { city: true, companyId: true }
   });
 
-  if (!job || !branch) throw new Error("NOT_FOUND");
-  if (job.companyId !== branch.companyId) throw new Error("DIFF_COMPANY");
-  if (!job.templateId) throw new Error("NO_TEMPLATE");
+  if (!job || !branch) throw new HttpError(404, "NOT_FOUND", "Job or Branch not found");
+  if (job.companyId !== branch.companyId) throw new HttpError(400, "BAD_REQUEST", "Job and Branch must belong to same company");
+  if (job.branches.length === 0) throw new HttpError(400, "BAD_REQUEST", "Job is not offered at this branch");
+  if (!job.templateId) throw new HttpError(400, "BAD_REQUEST", "Job has no templateId configured");
 
   // If there are no submissions for this template, return [] instead of 500
   const subCount = await prisma.submission.count({ where: { templateId: job.templateId } });
