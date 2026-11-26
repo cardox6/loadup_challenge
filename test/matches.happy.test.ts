@@ -3,7 +3,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 
-const BASE = "http://localhost:3000";
+const BASE = process.env.API_URL ?? "http://localhost:3000";
 
 async function getJobAndOfferingBranch() {
   // only a job with an assessment can be ranked

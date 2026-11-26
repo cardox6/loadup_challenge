@@ -24,3 +24,9 @@ export const MatchRequest = z.object({
     })
 });
 export type MatchRequest = z.infer<typeof MatchRequest>;
+
+export const TopCandidatesQuery = z.object({
+    branchId: z.string({ error: 'branchId is required' }).min(1, 'branchId is required'),
+    limit: z.coerce.number().int().min(1).max(100).default(5)
+});
+export type TopCandidatesQuery = z.infer<typeof TopCandidatesQuery>;
