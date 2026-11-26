@@ -28,7 +28,9 @@ model Branch {
   city  String
   createdAt DateTime @default(now())
   company Company @relation(fields: [companyId], references: [id])
+  jobs  JobBranch[]
 
+  @@unique([id, companyId])
   @@index([companyId])
 }
 
@@ -40,15 +42,31 @@ model Job {
   createdAt DateTime @default(now())
   company Company @relation(fields: [companyId], references: [id])
   template  AssessmentTemplate? @relation(fields: [templateId], references: [id])
+  branches  JobBranch[]
 
+  @@unique([id, companyId])
   @@index([companyId])
   @@index([templateId])
+}
+
+// Where a job is offered. Both foreign keys include companyId, so the database
+// itself rejects linking a job to another company's branch.
+model JobBranch {
+  jobId String
+  branchId  String
+  companyId String
+  createdAt DateTime @default(now())
+  job Job @relation(fields: [jobId, companyId], references: [id, companyId], onDelete: Cascade)
+  branch  Branch @relation(fields: [branchId, companyId], references: [id, companyId], onDelete: Restrict)
+
+  @@id([jobId, branchId])
+  @@index([branchId])
 }
 
 model Applicant {
   id  String @id @default(cuid())
   name  String
-  email String @unique
+  email String
   city  String?
   createdAt DateTime @default(now())
   submissions Submission[]

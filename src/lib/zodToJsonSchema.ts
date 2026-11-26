@@ -96,10 +96,12 @@ export const CreateJobBody = {
     properties: {
         title: { type: 'string', minLength: 1, description: 'Job title' },
         companyId: { type: 'string', description: 'Company ID' },
+        templateId: { type: 'string', nullable: true, description: 'Assessment template ID (optional)' },
         branchIds: { 
             type: 'array', 
             items: { type: 'string' }, 
-            description: 'Array of branch IDs where this job is available' 
+            minItems: 1,
+            description: 'Branches of the company where this job is offered' 
         }
     },
     required: ['title', 'companyId', 'branchIds']
