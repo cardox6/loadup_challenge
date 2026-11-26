@@ -135,3 +135,31 @@ describe("deleting records", () => {
   });
 });
 
+describe("submissions", () => {
+  async function applicantAndOneItemTemplate() {
+    const applicant = await post("/applicants", { name: "Test Taker", email: `${unique("s")}@example.test` });
+    const template = await post("/assessment-templates", {
+      title: "Duplicate answers",
+      profileKey: unique("profile"),
+      items: [{ text: "Is this a question?", correctOption: 1, weight: 3 }]
+    });
+    const full = await request(BASE).get(`/assessment-templates/${template.id}`);
+    return { applicantId: applicant.id, templateId: template.id, itemId: full.body.items[0].id };
+  }
+
+  it("rejects a question answered twice and saves nothing", async () => {
+    const { applicantId, templateId, itemId } = await applicantAndOneItemTemplate();
+    const answer = { itemId, chosenOption: 1 };
+    const body = await post("/submissions", { applicantId, templateId, answers: [answer, answer] }, 400);
+    expect(body.error.fields["answers.1.itemId"]).toBeDefined();
+
+    // An applicant with a saved submission can't be deleted, so 204 proves nothing was stored
+    expect((await request(BASE).delete(`/applicants/${applicantId}`)).status).toBe(204);
+  });
+
+  it("counts each question's weight once", async () => {
+    const { applicantId, templateId, itemId } = await applicantAndOneItemTemplate();
+    const body = await post("/submissions", { applicantId, templateId, answers: [{ itemId, chosenOption: 1 }] });
+    expect(body.summary).toEqual({ answered: 1, correctWeight: 3, wrongWeight: 0 });
+  });
+});

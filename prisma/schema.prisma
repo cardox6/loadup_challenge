@@ -122,6 +122,6 @@ model SubmissionAnswer {
   submission  Submission @relation(fields: [submissionId], references: [id])
   item  AssessmentItem @relation(fields: [itemId], references: [id])
 
-  @@index([submissionId])
+  @@unique([submissionId, itemId])
   @@index([itemId])
 }

@@ -24,6 +24,16 @@ export const CreateSubmission = z.object({
         itemId: z.string().min(1, 'Item ID is required'),
         chosenOption: z.number().int().min(0).max(3, 'Chosen option must be between 0 and 3')
     })).min(1, 'At least one answer is required').max(500, 'Too many answers')
+        .superRefine((answers, ctx) => {
+            // A repeated item would be scored once per repetition
+            const seen = new Set<string>();
+            answers.forEach((a, i) => {
+                if (seen.has(a.itemId)) {
+                    ctx.addIssue({ code: 'custom', message: 'This item is already answered in this submission', path: [i, 'itemId'] });
+                }
+                seen.add(a.itemId);
+            });
+        })
 });
 
 export type CreateSubmission = z.infer<typeof CreateSubmission>;
